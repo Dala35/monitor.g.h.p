@@ -28,7 +28,7 @@
       overflow-x: hidden;
     }
 
-    /* Top Bar & Status */
+    /* Barra Superior */
     .top-bar {
       background: rgba(2, 6, 23, 0.95);
       backdrop-filter: blur(12px);
@@ -50,7 +50,7 @@
 
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-    /* Layout */
+    /* Layout Principal */
     .main-terminal {
       display: grid;
       grid-template-columns: 320px 1fr 300px;
@@ -81,7 +81,7 @@
       align-items: center;
     }
 
-    /* Feed de Notícias Dinâmico */
+    /* Feed de Notícias */
     #newsFeed {
       flex: 1;
       overflow-y: auto;
@@ -105,13 +105,7 @@
     .news-item p { font-size: 11px; color: var(--text-muted); margin: 0; line-height: 1.4; }
     .news-tag { display: inline-block; font-size: 9px; padding: 2px 5px; background: #334155; border-radius: 3px; margin-top: 5px; }
 
-    /* Formulário e Interface Central */
-    .portal-core {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-
+    /* Estilos de Interface */
     #statusBanner {
       display: none;
       padding: 10px;
@@ -151,7 +145,6 @@
     .btn-secondary { background: transparent; border: 1px solid var(--accent-blue); color: var(--accent-blue); }
     .btn:hover { filter: brightness(1.2); }
 
-    /* Map Sim */
     .data-viz {
       background: #020617;
       height: 250px;
@@ -161,7 +154,6 @@
       overflow: hidden;
     }
 
-    /* Logs */
     .log-entry {
       font-size: 11px;
       padding: 8px;
@@ -169,17 +161,6 @@
       display: flex;
       justify-content: space-between;
     }
-
-    .loading-shimmer {
-      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      height: 60px;
-      border-radius: 4px;
-      margin-bottom: 10px;
-    }
-
-    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
     @media (max-width: 1024px) {
       .main-terminal { grid-template-columns: 1fr; }
@@ -204,19 +185,15 @@
 
 <main class="main-terminal">
   
-  <!-- Vigilância de Notícias -->
   <aside class="card">
     <div class="card-header">Vigilância em Tempo Real <span style="color:var(--danger)">● LIVE</span></div>
     <div id="newsFeed">
-      <div class="loading-shimmer"></div>
-      <div class="loading-shimmer"></div>
-      <div class="loading-shimmer"></div>
+      <p style="font-size: 11px; color: var(--text-muted);">A carregar vetores...</p>
     </div>
     <button id="refreshNewsBtn" class="btn btn-secondary" style="margin-top: 10px; font-size: 10px;">ATUALIZAR VETORES</button>
   </aside>
 
-  <!-- Centro de Comando e Relatórios -->
-  <section class="portal-core">
+  <section style="display: flex; flex-direction: column; gap: 15px;">
     <div class="card">
       <div id="statusBanner"></div>
       <div class="card-header">Registo de Ocorrência & Relatórios</div>
@@ -257,26 +234,16 @@
           <path d="M100,200 Q400,100 700,200 T100,300" stroke="var(--accent-blue)" fill="none" stroke-width="0.5"/>
           <g id="mapPoints"></g>
         </svg>
-        <div style="position: absolute; top: 10px; left: 10px; font-size: 10px; color: var(--accent-blue);">SINAL DE SATÉLITE: ENCRIPTADO</div>
       </div>
     </div>
   </section>
 
-  <!-- Histórico e Estatística -->
   <aside class="card">
-    <div class="card-header">Capacidade Hospitalar</div>
-    <div style="margin-bottom: 20px;">
-      <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px;">
-        <span>DISPONIBILIDADE REDE NACIONAL</span>
-        <span id="capVal">64%</span>
-      </div>
-      <div style="height: 4px; background: #1e293b; border-radius: 2px;">
-        <div id="capBar" style="width: 64%; height: 100%; background: var(--primary-green); border-radius: 2px; transition: 1s;"></div>
-      </div>
-    </div>
-
     <div class="card-header">Logs de Rede (Cloud)</div>
     <div id="historyList" style="font-size: 11px; flex: 1; overflow-y: auto;"></div>
+    <div style="margin-top: 15px; font-size: 9px; color: var(--text-muted); border-top: 1px solid #1e293b; padding-top: 10px;">
+      ESTAÇÃO ID: <span id="deviceIdDisplay">---</span>
+    </div>
   </aside>
 
 </main>
@@ -286,13 +253,29 @@
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  const firebaseConfig = JSON.parse(__firebase_config);
+  // --- CONFIGURAÇÃO PARA GITHUB ---
+  // Se for usar no Github, substitua o conteúdo abaixo pelas suas chaves do Firebase
+  let firebaseConfig;
+  try {
+    firebaseConfig = JSON.parse(__firebase_config);
+  } catch(e) {
+    // Fallback: Cole aqui o seu objeto de config se for publicar manualmente
+    firebaseConfig = {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SEU_PROJETO.firebaseapp.com",
+      projectId: "SEU_PROJETO",
+      storageBucket: "SEU_PROJETO.appspot.com",
+      messagingSenderId: "ID",
+      appId: "APP_ID"
+    };
+  }
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-autonomous-v1';
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-global-monitor';
 
-  // --- Funções de Negócio ---
+  // --- Funções de Vigilância ---
 
   async function fetchHealthNews() {
     const feedContainer = document.getElementById('newsFeed');
@@ -301,87 +284,64 @@
 
     try {
       const response = await fetch(`${proxyUrl}${targetUrl}`);
+      if (!response.ok) throw new Error("Erro no Proxy");
       const data = await response.json();
       const parser = new DOMParser();
       const xml = parser.parseFromString(data.contents, "text/xml");
       const items = xml.querySelectorAll("item");
 
+      if (items.length === 0) {
+        feedContainer.innerHTML = '<p style="font-size:11px;">Sem notícias recentes no vetor ONU.</p>';
+        return;
+      }
+
       feedContainer.innerHTML = '';
       items.forEach((item, index) => {
-        if (index > 8) return;
+        if (index > 6) return;
         const title = item.querySelector("title").textContent;
         const link = item.querySelector("link").textContent;
-        const desc = item.querySelector("description").textContent.substring(0, 100) + "...";
+        const desc = item.querySelector("description")?.textContent.substring(0, 100) + "..." || "";
         
         const div = document.createElement('div');
         div.className = 'news-item';
         div.innerHTML = `
           <h4>${title}</h4>
           <p>${desc}</p>
-          <span class="news-tag">FONTE: ONU/WHO</span>
+          <span class="news-tag">FONTE: ONU/INTERNATIONAL</span>
         `;
         div.addEventListener('click', () => window.open(link, '_blank'));
         feedContainer.appendChild(div);
       });
       updateMapPoints();
     } catch (e) {
-      feedContainer.innerHTML = '<p style="font-size:11px; color:var(--danger);">Falha ao capturar vetores externos.</p>';
+      feedContainer.innerHTML = '<p style="font-size:11px; color:var(--danger);">Erro de ligação à rede de vigilância externa.</p>';
     }
   }
 
   function exportLocalReport() {
     const data = {
       app: "G.H.P. MONITOR",
+      version: "1.0.4-PROD",
       timestamp: new Date().toISOString(),
-      email: document.getElementById('email').value || "ANON",
-      perfil: document.getElementById('perfil').value || "N/A",
+      email: document.getElementById('email').value || "ANON_AGENT",
+      perfil: document.getElementById('perfil').value || "EXTERNAL_OBSERVER",
       observacoes: document.getElementById('obs').value,
-      device_id: auth.currentUser?.uid || "OFFLINE"
+      device_uid: auth.currentUser?.uid || "OFFLINE_STATION"
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GHP_REPORT_${Date.now()}.json`;
+    a.download = `GHP_REPORT_LOCAL_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showBanner("RELATÓRIO GERADO NO DISPOSITIVO", "#38bdf8");
+    showBanner("RELATÓRIO LOCAL SALVO COM SUCESSO", "#38bdf8");
   }
 
-  // --- Lógica de Interface ---
-
-  function updateClock() {
-    const now = new Date();
-    document.getElementById('clock').textContent = now.toLocaleTimeString() + " UTC";
-    const val = 60 + Math.floor(Math.random() * 15);
-    const capVal = document.getElementById('capVal');
-    const capBar = document.getElementById('capBar');
-    if(capVal) capVal.textContent = val + "%";
-    if(capBar) capBar.style.width = val + "%";
-  }
-
-  function updateMapPoints() {
-    const g = document.getElementById('mapPoints');
-    if(!g) return;
-    g.innerHTML = '';
-    for(let i=0; i<10; i++){
-      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      circle.setAttribute("cx", Math.random() * 800);
-      circle.setAttribute("cy", Math.random() * 400);
-      circle.setAttribute("r", 3);
-      circle.setAttribute("fill", i % 3 === 0 ? "var(--danger)" : "var(--primary-green)");
-      const anim = document.createElementNS("http://www.w3.org/2000/svg", "animate");
-      anim.setAttribute("attributeName", "opacity");
-      anim.setAttribute("values", "1;0.2;1");
-      anim.setAttribute("dur", (Math.random()*2 + 1) + "s");
-      anim.setAttribute("repeatCount", "indefinite");
-      circle.appendChild(anim);
-      g.appendChild(circle);
-    }
-  }
+  // --- UI & Firebase Logic ---
 
   function showBanner(msg, color) {
     const b = document.getElementById('statusBanner');
@@ -390,7 +350,25 @@
     b.style.color = color;
     b.style.border = `1px solid ${color}`;
     b.textContent = msg;
-    setTimeout(() => b.style.display = 'none', 4000);
+    setTimeout(() => b.style.display = 'none', 5000);
+  }
+
+  function updateClock() {
+    document.getElementById('clock').textContent = new Date().toISOString().split('T')[1].split('.')[0] + " UTC";
+  }
+
+  function updateMapPoints() {
+    const g = document.getElementById('mapPoints');
+    if(!g) return;
+    g.innerHTML = '';
+    for(let i=0; i<12; i++){
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", Math.random() * 800);
+      circle.setAttribute("cy", Math.random() * 400);
+      circle.setAttribute("r", 2.5);
+      circle.setAttribute("fill", i % 4 === 0 ? "var(--danger)" : "var(--primary-green)");
+      g.appendChild(circle);
+    }
   }
 
   function setupLogListener(userId) {
@@ -402,8 +380,8 @@
       
       const list = document.getElementById('historyList');
       if(!list) return;
-      list.innerHTML = '';
-      logs.slice(0, 10).forEach(log => {
+      list.innerHTML = logs.length === 0 ? '<p style="color:#475569">Aguardando novos registos...</p>' : '';
+      logs.slice(0, 8).forEach(log => {
         const div = document.createElement('div');
         div.className = 'log-entry';
         div.innerHTML = `
@@ -412,13 +390,11 @@
         `;
         list.appendChild(div);
       });
-    }, (err) => console.error("Snapshot error:", err));
+    });
   }
 
-  // --- Event Listeners & Boot ---
-
   async function boot() {
-    // Vincular eventos via JS em vez de atributos inline
+    // Bindings
     document.getElementById('refreshNewsBtn').addEventListener('click', fetchHealthNews);
     document.getElementById('exportReportBtn').addEventListener('click', exportLocalReport);
     
@@ -426,9 +402,7 @@
       e.preventDefault();
       const isAnon = document.getElementById('anonMode').checked;
       const btn = document.getElementById('submitBtn');
-      
       btn.disabled = true;
-      btn.textContent = "PROCESSANDO...";
 
       try {
         if(!isAnon && auth.currentUser) {
@@ -438,28 +412,30 @@
             perfil: document.getElementById('perfil').value,
             timestamp: new Date().toISOString()
           });
-          showBanner("ACESSO REGISTADO NA CLOUD G.H.P.", "var(--primary-green)");
+          showBanner("REGISTO SINCRONIZADO COM A REDE G.H.P.", "var(--primary-green)");
         } else {
-          showBanner("PROTOCOLO SIGILO: DADOS APENAS LOCAIS", "var(--anon-purple)");
+          showBanner("PROTOCOLO DE SIGILO ATIVO: DADOS LOCAIS APENAS", "var(--anon-purple)");
         }
-      } catch (e) {
-        showBanner("ERRO DE REDE", "var(--danger)");
+      } catch (err) {
+        showBanner("FALHA NA NUVEM: VERIFIQUE FIREBASE CONFIG", "var(--danger)");
       } finally {
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.textContent = "AUTENTICAR E ENVIAR";
-        }, 1000);
+        btn.disabled = false;
       }
     });
 
     try {
       await signInAnonymously(auth);
       onAuthStateChanged(auth, (user) => {
-        if (user) setupLogListener(user.uid);
+        if (user) {
+          document.getElementById('deviceIdDisplay').textContent = user.uid.substring(0, 12).toUpperCase();
+          setupLogListener(user.uid);
+        }
       });
       fetchHealthNews();
       setInterval(updateClock, 1000);
-    } catch (e) { console.error("Boot error:", e); }
+    } catch (e) {
+      console.error("Erro de Inicialização:", e);
+    }
   }
 
   window.addEventListener('load', boot);
