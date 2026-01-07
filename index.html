@@ -188,9 +188,9 @@
   <aside class="card">
     <div class="card-header">Vigilância em Tempo Real <span style="color:var(--danger)">● LIVE</span></div>
     <div id="newsFeed">
-      <p style="font-size: 11px; color: var(--text-muted);">A carregar vetores...</p>
+      <p style="font-size: 11px; color: var(--text-muted);">Sincronizando com satélites...</p>
     </div>
-    <button id="refreshNewsBtn" class="btn btn-secondary" style="margin-top: 10px; font-size: 10px;">ATUALIZAR VETORES</button>
+    <button id="refreshNewsBtn" class="btn btn-secondary" style="margin-top: 10px; font-size: 10px;">FORÇAR SINCRONIZAÇÃO</button>
   </aside>
 
   <section style="display: flex; flex-direction: column; gap: 15px;">
@@ -253,13 +253,12 @@
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // --- CONFIGURAÇÃO PARA GITHUB ---
-  // Se for usar no Github, substitua o conteúdo abaixo pelas suas chaves do Firebase
+  // --- CONFIGURAÇÃO FIREBASE ---
   let firebaseConfig;
   try {
     firebaseConfig = JSON.parse(__firebase_config);
   } catch(e) {
-    // Fallback: Cole aqui o seu objeto de config se for publicar manualmente
+    // Configuração manual para o GitHub Pages
     firebaseConfig = {
       apiKey: "SUA_API_KEY",
       authDomain: "SEU_PROJETO.firebaseapp.com",
@@ -275,70 +274,86 @@
   const db = getFirestore(app);
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-global-monitor';
 
-  // --- Funções de Vigilância ---
+  // --- Funções de Vigilância com Resiliência ---
 
   async function fetchHealthNews() {
     const feedContainer = document.getElementById('newsFeed');
-    const proxyUrl = "https://api.allorigins.win/get?url=";
-    const targetUrl = encodeURIComponent("https://search.un.org/rss?query=health&lang=en");
+    feedContainer.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Sincronizando vetores...</p>';
+    
+    // Lista de proxies para fallback se um falhar
+    const proxies = [
+      "https://api.allorigins.win/get?url=",
+      "https://corsproxy.io/?"
+    ];
+    
+    const targetUrl = "https://search.un.org/rss?query=health&lang=en";
+    let success = false;
 
-    try {
-      const response = await fetch(`${proxyUrl}${targetUrl}`);
-      if (!response.ok) throw new Error("Erro no Proxy");
-      const data = await response.json();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(data.contents, "text/xml");
-      const items = xml.querySelectorAll("item");
-
-      if (items.length === 0) {
-        feedContainer.innerHTML = '<p style="font-size:11px;">Sem notícias recentes no vetor ONU.</p>';
-        return;
-      }
-
-      feedContainer.innerHTML = '';
-      items.forEach((item, index) => {
-        if (index > 6) return;
-        const title = item.querySelector("title").textContent;
-        const link = item.querySelector("link").textContent;
-        const desc = item.querySelector("description")?.textContent.substring(0, 100) + "..." || "";
+    for (let proxy of proxies) {
+      if (success) break;
+      try {
+        const response = await fetch(`${proxy}${encodeURIComponent(targetUrl)}`);
+        if (!response.ok) continue;
         
-        const div = document.createElement('div');
-        div.className = 'news-item';
-        div.innerHTML = `
-          <h4>${title}</h4>
-          <p>${desc}</p>
-          <span class="news-tag">FONTE: ONU/INTERNATIONAL</span>
-        `;
-        div.addEventListener('click', () => window.open(link, '_blank'));
-        feedContainer.appendChild(div);
-      });
-      updateMapPoints();
-    } catch (e) {
-      feedContainer.innerHTML = '<p style="font-size:11px; color:var(--danger);">Erro de ligação à rede de vigilância externa.</p>';
+        const data = await response.json();
+        const content = data.contents || data; // Diferentes proxies retornam formatos diferentes
+        
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(content, "text/xml");
+        const items = xml.querySelectorAll("item");
+
+        if (items.length > 0) {
+          feedContainer.innerHTML = '';
+          items.forEach((item, index) => {
+            if (index > 6) return;
+            const title = item.querySelector("title")?.textContent || "Sem Título";
+            const link = item.querySelector("link")?.textContent || "#";
+            const desc = item.querySelector("description")?.textContent.substring(0, 100) + "..." || "";
+            
+            const div = document.createElement('div');
+            div.className = 'news-item';
+            div.innerHTML = `
+              <h4>${title}</h4>
+              <p>${desc}</p>
+              <span class="news-tag">FONTE: REDE GLOBAL</span>
+            `;
+            div.addEventListener('click', () => window.open(link, '_blank'));
+            feedContainer.appendChild(div);
+          });
+          updateMapPoints();
+          success = true;
+        }
+      } catch (err) {
+        console.warn(`Proxy ${proxy} falhou, tentando o próximo...`);
+      }
+    }
+
+    if (!success) {
+      feedContainer.innerHTML = '<p style="font-size:11px; color:var(--danger);">Erro de ligação. A rede de vigilância externa pode estar sob manutenção ou bloqueada pelo seu ISP.</p>';
     }
   }
 
   function exportLocalReport() {
     const data = {
       app: "G.H.P. MONITOR",
-      version: "1.0.4-PROD",
+      version: "1.0.5-RESILIENT",
       timestamp: new Date().toISOString(),
       email: document.getElementById('email').value || "ANON_AGENT",
-      perfil: document.getElementById('perfil').value || "EXTERNAL_OBSERVER",
+      perfil: document.getElementById('perfil').value || "OBSERVER",
       observacoes: document.getElementById('obs').value,
-      device_uid: auth.currentUser?.uid || "OFFLINE_STATION"
+      device_uid: auth.currentUser?.uid || "OFFLINE"
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GHP_REPORT_LOCAL_${Date.now()}.json`;
+    a.download = `GHP_VIGILANCIA_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showBanner("RELATÓRIO LOCAL SALVO COM SUCESSO", "#38bdf8");
+    showBanner("RELATÓRIO DE CAMPO SALVO NO DISPOSITIVO", "#38bdf8");
   }
 
   // --- UI & Firebase Logic ---
@@ -361,12 +376,12 @@
     const g = document.getElementById('mapPoints');
     if(!g) return;
     g.innerHTML = '';
-    for(let i=0; i<12; i++){
+    for(let i=0; i<15; i++){
       const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       circle.setAttribute("cx", Math.random() * 800);
       circle.setAttribute("cy", Math.random() * 400);
-      circle.setAttribute("r", 2.5);
-      circle.setAttribute("fill", i % 4 === 0 ? "var(--danger)" : "var(--primary-green)");
+      circle.setAttribute("r", 2);
+      circle.setAttribute("fill", i % 5 === 0 ? "var(--danger)" : "var(--primary-green)");
       g.appendChild(circle);
     }
   }
@@ -394,7 +409,6 @@
   }
 
   async function boot() {
-    // Bindings
     document.getElementById('refreshNewsBtn').addEventListener('click', fetchHealthNews);
     document.getElementById('exportReportBtn').addEventListener('click', exportLocalReport);
     
@@ -412,12 +426,12 @@
             perfil: document.getElementById('perfil').value,
             timestamp: new Date().toISOString()
           });
-          showBanner("REGISTO SINCRONIZADO COM A REDE G.H.P.", "var(--primary-green)");
+          showBanner("REGISTO SINCRONIZADO", "var(--primary-green)");
         } else {
-          showBanner("PROTOCOLO DE SIGILO ATIVO: DADOS LOCAIS APENAS", "var(--anon-purple)");
+          showBanner("SIGILO ATIVO: RELATÓRIO APENAS LOCAL", "var(--anon-purple)");
         }
       } catch (err) {
-        showBanner("FALHA NA NUVEM: VERIFIQUE FIREBASE CONFIG", "var(--danger)");
+        showBanner("FALHA FIREBASE: VERIFIQUE CHAVES", "var(--danger)");
       } finally {
         btn.disabled = false;
       }
@@ -434,7 +448,7 @@
       fetchHealthNews();
       setInterval(updateClock, 1000);
     } catch (e) {
-      console.error("Erro de Inicialização:", e);
+      console.error("Erro no arranque:", e);
     }
   }
 
